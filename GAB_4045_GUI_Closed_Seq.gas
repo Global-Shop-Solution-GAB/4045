@@ -1,0 +1,99 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+F.Intrinsic.Control.SelectCase(V.Caller.Hook)
+
+'Pre Start Job Hook
+F.Intrinsic.Control.Case(15951)
+
+	F.Intrinsic.Control.CallSub(Operations,"Job",V.Passed.009990,"Suffix",V.Passed.009991,"Seq",V.Passed.009992)
+
+'Start Flex  Schedule Hook
+F.Intrinsic.Control.Case(15756)
+
+	F.Intrinsic.Control.CallSub(Flexsched,"schedule",V.Passed.009990,"suffix",V.Passed.009991)
+
+'Start Multiple Jobs
+F.Intrinsic.Control.Case(15934)
+
+	F.Intrinsic.Control.CallSub(Operations,"Job",V.Passed.009000,"Suffix",V.Passed.009001,"Seq",V.Passed.009002)
+
+'Scanning Work Orders
+F.Intrinsic.Control.Case(15754)
+
+	F.Intrinsic.Control.CallSub(Operations,"Job",V.Passed.009000,"Suffix",V.Passed.009001,"Seq",V.Passed.009002)
+
+F.Intrinsic.Control.CaseElse
+
+	F.Intrinsic.Control.CallSub(Unload)
+
+F.Intrinsic.Control.EndSelect
+
+
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+F.ODBC.Connection!conx.CloseRecordsets
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+Program.Sub.Unload.End
+
+Program.Sub.FlexSched.Start
+V.Local.sQuery.Declare(String)
+
+F.Intrinsic.String.Concat("Select * From  JOB_CT_FLX_SCHD where Schedule='",V.Args.Schedule,"' and Schedule_suffix='",V.Args.suffix,"'",V.Local.sQuery)
+F.ODBC.Connection!conx.OpenRecordsetRO("rst",V.Local.sQuery)
+F.Intrinsic.Control.DoUntil(V.ODBC.conx!rst.EOF,=,True)
+	
+	F.Intrinsic.Control.CallSub(Operations,"Job",V.ODBC.conx!rst.FieldVal!JOB,"Suffix",V.ODBC.conx!rst.FieldVal!SUFFIX,"Seq",V.ODBC.conx!rst.FieldVal!LABOR_SEQ)
+
+	F.ODBC.conx!rst.MoveNext
+F.Intrinsic.Control.Loop
+
+
+Program.Sub.FlexSched.End
+
+Program.Sub.Operations.Start
+V.Local.sJob.Declare(String)
+V.Local.sSuffix.Declare(String)
+V.Local.sSeq.Declare(String)
+V.Local.sQuery.Declare(String)
+V.Local.sMsg.Declare(String)
+
+V.Local.sJob.Set(V.Args.Job)
+V.Local.sSuffix.Set(V.Args.Suffix)
+V.Local.sSeq.Set(V.Args.Seq)
+
+F.Intrinsic.String.Concat("Select * From JOB_OPERATIONS where JOB='",V.Local.sJob,"' and SUFFIX='",V.Local.sSuffix,"' and SEQ ='",V.Local.sSeq,"';",V.Local.sQuery)
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst_op",V.Local.sQuery)
+
+F.Intrinsic.Control.If(V.ODBC.conx!rst_op.FieldVal!FLAG_CLOSED,=,"Y")
+	F.Intrinsic.String.Concat("The sequence ",V.Local.sSeq," is closed.",V.Local.sMsg)
+	F.Intrinsic.UI.Msgbox(V.Local.sMsg,"Sequence Validation")
+	V.Passed.777777.Set(1)
+	F.Intrinsic.Control.CallSub(Unload)
+F.Intrinsic.Control.EndIf
+
+Program.Sub.Operations.End
+
+Program.Sub.Comments.Start
+${$0$}$ATG_JOB_Issue_Material$}$JESSICA$}$9/3/2012
+${$1$}$$}$$}$2$}$15934$}$OLS005-PB-START-JOB-PRE-HOOK(GUI START JOB BUTTON)$}$9/3/2012 5:18:11 PM$}$(Program: OLG002; Screen: OLS005)
+
+${$1$}$$}$$}$1$}$15951$}$Pre-Start Job Hook$}$9/3/2012 5:16:05 PM$}$(Program: OLG002; Screen: OLS007)
+
+${$1$}$$}$$}$0$}$15756$}$Start Flex Schedule Hook$}$9/3/2012 5:14:08 PM$}$(Program: OLG002; Screen: OLS001)
+
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$GAB program will be create and hooked to the Start Job, Start Multiple Jobs, and Start Flex Schedule hooks.  On the Start Job and Start Multiple Jobs hook the program will check the JOB_OPERATIONS table to see if a material sequence is before the operations be clocked into.  If not the program will allow the user to clock in as normal.  If the operation is a material sequence the program will check to see if HOURS_ACTUAL is > 0.  If not the program will prevent the user for clocking in and prompt the user that the material has not yet been issued.
+
+If the user is clocking into a flex schedule, the program will check the JOB_CT_FLX_SCHD and find all operations tied to the flex schedule.  The program will do the same check as above for each job.  If any job is found to not have the material issued, the program will prevent clocking in on the entire flex schedule by overriding the clock in.
+Program.Sub.Comments.End
+
